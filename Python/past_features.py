@@ -25,6 +25,7 @@ def features_past_generation(
     The output of the functions is twice as long as "indices".
     (these features introduce many hyperparameters to be tuned...)
     """
+    print(f"###########{features_creation_function.__name__}#############")
     matches_outcomes = []
     for i, match_indice in enumerate(indices):
         match = data.iloc[match_indice, :]
@@ -51,7 +52,7 @@ def features_player_creation(outcome, match, past_matches):
     ##### General stats
     wins = past_matches[past_matches.Winner == player]
     losses = past_matches[past_matches.Loser == player]
-    todo = pd.concat([wins, losses], 0)
+    todo = pd.concat([wins, losses], axis = 0)
     features_player += [len(wins), len(losses), len(todo)]
     per_victory = 100 * len(wins) / len(todo) if len(todo) > 0 else np.nan
     features_player.append(per_victory)
@@ -59,7 +60,7 @@ def features_player_creation(outcome, match, past_matches):
     past_surface = past_matches[past_matches.Surface == surface]
     wins_surface = past_surface[past_surface.Winner == player]
     losses_surface = past_surface[past_surface.Loser == player]
-    todo_surface = pd.concat([wins_surface, losses_surface], 0)
+    todo_surface = pd.concat([wins_surface, losses_surface], axis = 0)
     features_player += [len(wins_surface), len(losses_surface), len(todo_surface)]
     per_victory_surface = (
         100 * len(wins_surface) / len(todo_surface) if len(todo_surface) > 0 else np.nan
@@ -75,7 +76,7 @@ def features_recent_creation(outcome, match, past_matches):
     ##### Last matches
     wins = past_matches[past_matches.Winner == player]
     losses = past_matches[past_matches.Loser == player]
-    todo = pd.concat([wins, losses], 0)
+    todo = pd.concat([wins, losses], axis = 0)
     if len(todo) == 0:
         return [np.nan] * 7
     # Days since last match
@@ -108,7 +109,7 @@ def features_duo_creation(outcome, match, past):
     # % of the previous matches between these 2 players won by each.
     duo1 = past[(past.Winner == player1) & (past.Loser == player2)]
     duo2 = past[(past.Winner == player2) & (past.Loser == player1)]
-    duo = pd.concat([duo1, duo2], 0)
+    duo = pd.concat([duo1, duo2], axis = 0)
     features_duo += [len(duo), len(duo1), len(duo2)]
     per_victory_player1 = 100 * len(duo1) / len(duo) if len(duo) > 0 else np.nan
     features_duo.append(per_victory_player1)

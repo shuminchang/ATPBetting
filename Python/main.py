@@ -1,13 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from datetime import datetime, timedelta
-
 from past_features import *
 from elo_features import *
 from categorical_features import *
 from stategy_assessment import *
 from utilities import *
 
+from datetime import datetime # <- move this import due to the confliction of datetime import in past_features.py
+
+import glob
+import os
+
+generated_data_dir = "../Generated Data"
+
+if not os.path.exists(generated_data_dir):
+    os.mkdir(generated_data_dir)
 
 ################################################################################
 ######################### Building of the raw dataset ##########################
@@ -16,11 +23,8 @@ from utilities import *
 ### Importation of the Excel files - 1 per year (from tennis.co.uk)
 # Some preprocessing is necessary because for several years the odds are not present
 # We consider only the odds of Bet365 and Pinnacle.
-
-import glob
-
 filenames = list(glob.glob("../Data/20*.xls*"))
-l = [pd.read_excel(filename, encoding="latin-1") for filename in filenames]
+l = [pd.read_excel(filename) for filename in filenames]
 no_b365 = [i for i, d in enumerate(l) if "B365W" not in l[i].columns]
 no_pi = [i for i, d in enumerate(l) if "PSW" not in l[i].columns]
 for i in no_pi:
@@ -37,7 +41,7 @@ l = [
     ]
     for d in [l[0]] + l[2:]
 ]
-data = pd.concat(l, 0)
+data = pd.concat(l, axis = 0)
 
 ### Data cleaning
 data = data.sort_values("Date")
@@ -55,20 +59,18 @@ data = data.reset_index(drop=True)
 ### Elo rankings data
 # Computing of the elo ranking of each player at the beginning of each match.
 elo_rankings = compute_elo_rankings(data)
-data = pd.concat([data, elo_rankings], 1)
+data = pd.concat([data, elo_rankings], axis = 1)
 
 ### Storage of the raw dataset
-data.to_csv("../Generated Data/atp_data.csv", index=False)
-
+data.to_csv(os.path.join(generated_data_dir, "atp_data.csv"), index=False)
 
 ################################################################################
 ######################## Building training set #################################
 ################################################################################
 ### We'll add some features to the dataset
 
-data = pd.read_csv("../Generated Data/atp_data.csv")
+data = pd.read_csv(os.path.join(generated_data_dir, "atp_data.csv"))
 data.Date = data.Date.apply(lambda x: datetime.strptime(x, "%Y-%m-%d"))
-
 
 ######################### The period that interests us #########################
 
@@ -90,10 +92,12 @@ features_general = features_past_generation(
 features_recent = features_past_generation(
     features_recent_creation, 150, "recentft", data, indices
 )
-# dump(player_features,"player_features")
-# dump(duo_features,"duo_features")
-# dump(general_features,"general_features")
-# dump(recent_features,"recent_features")
+
+dump(features_player, "player_features")
+dump(features_duo, "duo_features")
+dump(features_general, "general_features")
+dump(features_recent, "recent_features")
+
 features_player = load("player_features")
 features_duo = load("duo_features")
 features_general = load("general_features")
@@ -113,7 +117,7 @@ features_categorical_encoded = categorical_features_encoding(features_categorica
 players_encoded = features_players_encoding(data)
 tournaments_encoded = features_tournaments_encoding(data)
 features_onehot = pd.concat(
-    [features_categorical_encoded, players_encoded, tournaments_encoded], 1
+    [features_categorical_encoded, players_encoded, tournaments_encoded], axis = 1
 )
 
 
@@ -153,10 +157,10 @@ features = pd.concat(
         features_general,
         features_recent,
     ],
-    1,
+    axis = 1,
 )
 
-features.to_csv("../Generated Data/atp_data_features.csv", index=False)
+features.to_csv(os.path.join(generated_data_dir, "atp_data_features.csv"), index=False)
 
 
 ################################################################################
@@ -168,7 +172,7 @@ features.to_csv("../Generated Data/atp_data_features.csv", index=False)
 ## validation (the consecutive matches right before the testing matches)
 
 ######################### Confidence computing for each match ############################
-features = pd.read_csv("../Generated Data/atp_data_features.csv")
+features = pd.read_csv(os.path.join(generated_data_dir, "atp_data_features.csv"))
 
 start_date = datetime(2013, 1, 1)  # first day of testing set
 test_beginning_match = data[data.Date == start_date].index[
@@ -208,7 +212,7 @@ params = (
         )
     )
     .T.reshape(-1, 9)
-    .astype(np.float)
+    .astype(float)
 )
 xgb_params = params[0]
 
@@ -235,7 +239,7 @@ for start in key_matches:
     )
     confs.append(conf)
 confs = [el for el in confs if type(el) != int]
-conf = pd.concat(confs, 0)
+conf = pd.concat(confs, axis = 0)
 ## We add the date to the confidence dataset (can be useful for analysis later)
 dates = data.Date.reset_index()
 dates.columns = ["match", "date"]
@@ -245,7 +249,7 @@ conf = conf.reset_index(drop=True)
 
 
 ## We store this dataset
-conf.to_csv("../Generated Data/confidence_data.csv", index=False)
+conf.to_csv(os.path.join(generated_data_dir, "confidence_data.csv"), index=False)
 
 ## Plot of ROI according to the % of matches we bet on
 plotProfits(conf, "Test on the period Jan. 2013 -> March 2018")
